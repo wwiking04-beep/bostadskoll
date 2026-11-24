@@ -75,6 +75,34 @@ document.querySelectorAll('form[data-vantelista]').forEach((vf) => vf.addEventLi
   else visa(med, 'Något gick fel. Kontrollera mejladressen och försök igen.', false);
 }));
 
+// ---------- Mejlpåminnelser (dubbel bekräftelse via mejl) ----------
+document.querySelectorAll('form[data-mejl]').forEach((mf) => mf.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const med = mf.parentElement.querySelector('[data-mejlsvar]');
+  let koer;
+  if (mf.hasAttribute('data-alla')) {
+    koer = lasa().filter((x) => hittaKo(x.slug)).map((x) => ({ slug: x.slug, senast: x.senast }));
+    if (!koer.length) { visa(med, 'Lägg till en kö först.', false); return; }
+  } else {
+    const pf = mf.parentElement.querySelector('form[data-paminn]');
+    const slug = pf.dataset.ko || pf.querySelector('select[name=ko]').value;
+    const datum = pf.querySelector('input[name=datum]').value;
+    if (!datum || datum > lokalDag()) { visa(med, 'Fyll i datumet ovan först.', false); return; }
+    laggTill(slug, datum);
+    koer = [{ slug, senast: datum }];
+  }
+  const knapp = mf.querySelector('button');
+  knapp.disabled = true;
+  try {
+    const r = await fetch('/api/mejl/', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ epost: mf.epost.value.trim(), koer }) });
+    const svar = await r.json().catch(() => ({}));
+    if (r.ok && svar.vantelista) visa(med, 'Tack! Mejlpåminnelserna öppnar för alla inom kort, och vi hör av oss då. Under tiden fungerar kalendern.', true);
+    else if (r.ok) { visa(med, `Kolla inkorgen och tryck på länken i mejlet, så är det klart. Hittar du det inte, titta under skräppost.`, true); mf.reset(); }
+    else visa(med, esc(svar.fel || 'Något gick fel. Försök igen.'), false);
+  } catch { visa(med, 'Ingen anslutning. Försök igen.', false); }
+  knapp.disabled = false;
+}));
+
 // ---------- Mina köer ----------
 if ($('#lista')) {
   const onskad = new URLSearchParams(location.search).get('ko');

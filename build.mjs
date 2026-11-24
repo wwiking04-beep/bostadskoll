@@ -1,5 +1,5 @@
 // Bygger Bostadskoll till dist/: statiska, sökbara sidor + en liten app för Mina köer.
-import { mkdirSync, writeFileSync, rmSync, readFileSync, copyFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, rmSync, readFileSync, copyFileSync, readdirSync } from 'node:fs';
 import { build } from 'esbuild';
 import { KOER, KONTROLLERAD } from './src/koer.js';
 
@@ -86,18 +86,24 @@ const paminnForm = (ko, id = '') => `<form class="paminn" data-paminn ${ko ? `da
     <div><label class="liten" data-etikett>Senast du loggade in</label><input type="date" name="datum" required aria-label="Datum"></div>
     <div class="skicka"><button class="knapp" type="submit">${ikon('kalender')}Lägg i kalendern</button></div>
   </form>`;
+const mejlForm = (alla = false) => `<form class="rad mejlform" data-mejl ${alla ? 'data-alla' : ''}>
+    <input type="email" name="epost" placeholder="din@mejl.se" autocomplete="email" required aria-label="Mejladress">
+    <button class="knapp sekundar" type="submit">${ikon('kuvert')}${alla ? 'Mejla mig om alla' : 'Mejla mig i stället'}</button>
+  </form>
+  <div class="meddelande" role="status" data-mejlsvar></div>`;
 const anmalan = (ko) => `<section class="cta glas">
   <h2>Få en påminnelse innan det är för sent</h2>
   <p class="mjuk">Ange när du senast ${ko ? esc(ko.atgard_kort) : 'loggade in eller betalade'}. Vi räknar ut sista dagen och lägger den i din kalender med påminnelser 30, 7 och 1 dag innan. Gratis, inget konto.</p>
   ${paminnForm(ko)}
   <div class="meddelande" role="status"></div>
-  <p class="liten mjuk">Hellre mejl? <a href="/premium/#vantelista">Skriv upp dig</a> så hör vi av oss när mejlpåminnelser öppnar.</p>
+  <p class="liten mjuk eller">Hellre mejl? Fyll i datumet ovan och din mejladress, så mejlar vi dig 30, 7 och 1 dag innan.</p>
+  ${mejlForm()}
 </section>`;
 
 // ---------- Startsidan ----------
 const startFragor = [
   ['Hur tappar man sin plats i bostadskön?', 'De flesta köer kräver något återkommande: Boplats Göteborg, Bostadsförmedlingen i Stockholm, Boplats Syd och Uppsala Bostadsförmedling tar ut en årsavgift, medan hyresvärdar som Willhem, SGS, Stångåstaden och Bostäder i Borås kräver att du loggar in minst en gång om året. Missar du det kan flera års kötid försvinna.'],
-  ['Vad kostar Bostadskoll?', 'Det är gratis att hålla koll på alla dina köer och lägga påminnelserna i kalendern. Premium med påminnelser i mejlen och bevakning av regeländringar kommer att kosta 29 kr i månaden eller 199 kr om året.'],
+  ['Vad kostar Bostadskoll?', 'Det är gratis att hålla koll på alla dina köer och få påminnelser i kalendern eller i mejlen. Premium med bevakning av regeländringar och dina köer på alla enheter kommer att kosta 29 kr i månaden eller 199 kr om året.'],
   ['Loggar Bostadskoll in eller betalar åt mig?', 'Nej. Bostadskoll påminner dig i god tid, och du loggar in eller betalar själv hos kön. Vi ber aldrig om ditt BankID eller dina inloggningsuppgifter.'],
   ['Hur ofta måste jag logga in i bostadskön?', 'Det skiljer sig. Boplats Syd kräver att du uppdaterar dina uppgifter var sjätte månad, de flesta hyresvärdar kräver inloggning en gång per år och förmedlingarna kräver en årsavgift. Se reglerna för varje kö på sidan Köerna.'],
   ['Hur aktuella är reglerna?', `Reglerna är hämtade från köernas egna webbplatser och senast kontrollerade ${KONTROLLERAD}. Där en kö inte skriver något anger vi "uppgift saknas" i stället för att gissa.`],
@@ -122,7 +128,7 @@ const start = sida({
 <section class="rutnat">
   <div class="glas kort steg">${ikon('plus')}<h3>Lägg in dina köer</h3><p>Välj köerna du står i och när du senast loggade in eller betalade.</p></div>
   <div class="glas kort steg">${ikon('kalender')}<h3>Vi räknar ut fristen</h3><p>Varje kö har egna regler. Vi vet vilka och räknar ut när det är dags nästa gång.</p></div>
-  <div class="glas kort steg">${ikon('klocka2')}<h3>Påminnelse i kalendern</h3><p>30, 7 och 1 dag innan, direkt i telefonens kalender. Du loggar in eller betalar, trycker Klart, och nästa frist räknas fram.</p></div>
+  <div class="glas kort steg">${ikon('klocka2')}<h3>Påminnelse i kalendern eller mejlen</h3><p>30, 7 och 1 dag innan, i telefonens kalender eller i inkorgen. Du loggar in eller betalar, trycker Klart, och nästa frist räknas fram.</p></div>
 </section>
 
 <h2>Köerna vi håller koll på</h2>
@@ -216,15 +222,15 @@ const pris = (namn, belopp, enhet, punkter, utvald, plan) => `<div class="pris g
 const premium = sida({
   sokvag: '/premium/',
   titel: 'Bostadskoll Premium – bevaka alla dina bostadsköer',
-  beskrivning: 'Påminnelser i mejlen före varje frist och besked när en kö ändrar sina regler. 29 kr i månaden eller 199 kr om året.',
+  beskrivning: 'Besked när en kö ändrar sina regler och dina köer på alla enheter. 29 kr i månaden eller 199 kr om året.',
   innehall: `
 <section class="hjalte">
   <h1>Alla dina köer, <span class="markerat">en koll</span></h1>
-  <p class="ingress">Står du i flera köer? Premium påminner dig i mejlen och säger till när en kö ändrar sina regler, så att du aldrig missar något.</p>
+  <p class="ingress">Står du i flera köer? Premium säger till när en kö ändrar sina regler och har dina köer på alla enheter, så att du aldrig missar något.</p>
 </section>
 <section class="priser">
-  ${pris('Gratis', '0 kr', '', ['Alla dina köer', 'Påminnelse i kalendern 30, 7 och 1 dag innan', 'Regler för alla köer'], false, null)}
-  ${pris('Premium månad', '29 kr', '/ månad', ['Påminnelse i mejlen 30, 7 och 1 dag innan', 'Besked när en kö ändrar sina regler', 'Dina köer på alla enheter'], false, 'manad')}
+  ${pris('Gratis', '0 kr', '', ['Alla dina köer', 'Påminnelse i kalendern eller mejlen 30, 7 och 1 dag innan', 'Regler för alla köer'], false, null)}
+  ${pris('Premium månad', '29 kr', '/ månad', ['Allt i Gratis', 'Besked när en kö ändrar sina regler', 'Dina köer på alla enheter'], false, 'manad')}
   ${pris('Premium år', '199 kr', '/ år', ['Allt i Premium', 'Motsvarar 17 kr i månaden', 'En betalning om året'], true, 'ar')}
 </section>
 <section class="cta glas" id="vantelista">
@@ -258,6 +264,11 @@ const mina = sida({
   ${paminnForm(null, 'nyform')}
   <div class="meddelande" role="status"></div>
 </div>
+<div class="lagg-till glas mejlkort">
+  <h3>${ikon('kuvert')} Påminnelser i mejlen</h3>
+  <p class="mjuk">Vi mejlar dig 30, 7 och 1 dag innan för alla köerna ovan. Du bekräftar din adress först, och varje mejl har en länk för att sluta.</p>
+  ${mejlForm(true)}
+</div>
 `,
   skript: '<script type="module" src="/app.js"></script>',
 });
@@ -269,9 +280,11 @@ const integritet = sida({
   innehall: `
 <section class="sidhuvud"><h1>Integritet</h1></section>
 <section class="glas kort" style="padding:28px">
-<p>Köerna du lägger in och datumen sparas bara i din egen webbläsare, inte hos oss. Påminnelserna läggs i din egen kalender.</p><p>Skriver du upp dig för mejlpåminnelser eller Premium sparar vi bara mejladressen, och bara för att höra av oss när det öppnar.</p>
+<p>Köerna du lägger in och datumen sparas i din egen webbläsare. Väljer du påminnelser i kalendern stannar allt hos dig.</p>
+<p>Väljer du påminnelser i mejlen sparar vi din mejladress, vilka köer du står i och datumen, bara för att kunna mejla dig. Inget sparas förrän du bekräftat adressen via mejlet vi skickar. Varje påminnelse har en länk för att avregistrera dig, och då raderar vi adressen och köerna direkt.</p>
+<p>Skriver du upp dig för Premium sparar vi bara mejladressen, och bara för att höra av oss när det öppnar.</p>
 <p>Vi ber aldrig om BankID, personnummer eller inloggningsuppgifter till bostadsköerna, och vi loggar inte in åt dig.</p>
-<p>Mejladresser lagras hos Supabase inom EU. Vill du bli borttagen räcker det att höra av dig.</p>
+<p>Uppgifterna lagras hos Supabase inom EU. Mejlen skickas via Resend.</p>
 </section>`,
 });
 
@@ -293,6 +306,9 @@ copyFileSync('src/ikon.svg', `${UT}/ikon.svg`);
 const urls = ['/', '/koer/', '/premium/', ...KOER.map((k) => `/ko/${k.slug}/`)];
 skriv(`${UT}/sitemap.xml`, `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${SAJT}${u}</loc><lastmod>${KONTROLLERAD}</lastmod></url>`).join('\n')}\n</urlset>\n`);
 skriv(`${UT}/robots.txt`, `User-agent: *\nAllow: /\nSitemap: ${SAJT}/sitemap.xml\n`);
+mkdirSync(`${UT}/api`, { recursive: true });
+for (const f of readdirSync('src/api')) copyFileSync(`src/api/${f}`, `${UT}/api/${f}`);
+copyFileSync('src/koer.js', `${UT}/api/_koer.mjs`);
 skriv(`${UT}/vercel.json`, readFileSync('vercel.json', 'utf8'));
 
 await build({ entryPoints: ['src/app.js'], bundle: true, minify: true, format: 'esm', target: 'es2020', outfile: `${UT}/app.js`, logLevel: 'warning' });

@@ -29,4 +29,34 @@ for (const f of ['index.html', 'koer/index.html', 'premium/index.html', 'mina-ko
 const kosida = readFileSync('dist/ko/boplats-syd/index.html', 'utf8');
 assert.match(kosida, /data-paminn data-ko="boplats-syd"/);
 assert.match(kosida, /application\/ld\+json/);
+// Mejlpåminnelser: serverfunktionerna finns i bygget och fungerar utan nätverk där det går
+for (const f of ['api/mejl.mjs', 'api/bekrafta.mjs', 'api/avregistrera.mjs', 'api/klar.mjs', 'api/paminnelser.mjs', 'api/_lib.mjs', 'api/_koer.mjs']) assert.ok(existsSync('dist/' + f), f);
+assert.match(kosida, /data-mejl/);
+assert.match(readFileSync('dist/mina-koer/index.html', 'utf8'), /data-mejl data-alla/);
+assert.ok(JSON.parse(readFileSync('dist/vercel.json', 'utf8')).crons[0].path.startsWith('/api/paminnelser'));
+{
+  const lib = await import('./dist/api/_lib.mjs');
+  assert.equal(lib.plusDagar('2025-11-24', 365), '2026-11-24');
+  assert.equal(lib.idagSverige(new Date('2026-11-23T23:30:00Z')), '2026-11-24');
+  assert.ok(lib.epostOk('a@b.se') && !lib.epostOk('a b@c.se') && !lib.epostOk('x'));
+  process.env.MEJL_TILLATNA = 'min@mejl.se';
+  assert.ok(lib.farMejlas('Min@Mejl.se') && !lib.farMejlas('annan@mejl.se'));
+  await assert.rejects(lib.skickaMejl({ till: 'annan@mejl.se', amne: 'x', html: 'x', text: 'x' }));
+  assert.ok(!lib.esc('<a href="x">').includes('<'));
+  const mejl = await import('./dist/api/mejl.mjs');
+  const anrop = (b) => mejl.POST(new Request('https://x/api/mejl/', { method: 'POST', body: JSON.stringify(b) }));
+  assert.equal((await anrop({ epost: 'fel', koer: [] })).status, 400);
+  assert.equal((await anrop({ epost: 'min@mejl.se', koer: [{ slug: 'finns-inte', senast: '2026-01-01' }] })).status, 400);
+  assert.equal((await anrop({ epost: 'min@mejl.se', koer: [{ slug: 'boplats-syd', senast: '2999-01-01' }] })).status, 400);
+  const p = await import('./dist/api/paminnelser.mjs');
+  assert.equal((await p.GET(new Request('https://x/api/paminnelser/'))).status, 401);
+  const m = p.paminnelse({ ko_slug: 'boplats-syd', avreg: 'a'.repeat(64), deadline: '2026-12-01', dagar_kvar: 7 });
+  assert.match(m.amne, /om 7 dagar/);
+  assert.match(m.html, /api\/avregistrera\/\?t=a{64}/);
+  assert.match(m.html, /api\/klar\/\?t=a{64}&amp;ko=boplats-syd/);
+  assert.match(p.paminnelse({ ko_slug: 'boplats-syd', avreg: 'a'.repeat(64), deadline: '2026-12-01', dagar_kvar: 0 }).amne, /Sista dagen/);
+  const av = await import('./dist/api/avregistrera.mjs');
+  assert.equal((await av.GET(new Request('https://x/api/avregistrera/?t=kort'))).status, 400);
+  assert.match(await (await av.GET(new Request('https://x/api/avregistrera/?t=' + 'b'.repeat(64)))).text(), /method="post"/);
+}
 console.log('Alla tester gick igenom');

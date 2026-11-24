@@ -190,3 +190,8 @@ form.paminn .skicka { align-self: end; }
 @media (max-width: 640px) { form.paminn, form.paminn[data-ko] { grid-template-columns: 1fr; } form.paminn .knapp { width: 100%; } }
 p.liten { font-size: 14px; margin: 10px 0 0; }
 .bevakning .namn a { color: var(--text); }
+.mejlform { margin-top: 10px; }
+.eller { margin-top: 22px; }
+.mejlkort { margin-top: 16px; }
+.mejlkort p { margin: 0; }
+.mejlkort .mejlform { justify-content: flex-start; }
